@@ -25,3 +25,36 @@ replay_pid*
 
 # Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
 .kotlin/
+
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+hs_err_pid*
+replay_pid*
+
+.vscode/
+*.code-workspace
+.history/
+.ionide/
+
+.DS_Store
+Thumbs.db
+
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+reporte/*.aux
+reporte/*.bbl
+reporte/*.blg
+reporte/*.log
+reporte/*.out
+reporte/*.toc
+reporte/*.synctex.gz
+reporte/*.fdb_latexmk
+reporte/*fls
