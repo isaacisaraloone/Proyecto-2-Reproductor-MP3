@@ -58,3 +58,5 @@ reporte/*.toc
 reporte/*.synctex.gz
 reporte/*.fdb_latexmk
 reporte/*fls
+
+bin/
