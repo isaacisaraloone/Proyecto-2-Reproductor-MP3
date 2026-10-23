@@ -11,6 +11,7 @@ repositories {
 }
 
 dependencies {
+	implementation("com.mpatric:mp3agic:0.9.1")
 	implementation("org.xerial:sqlite-jdbc:3.46.1.0")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 	testImplementation(kotlin("test"))
@@ -23,6 +24,17 @@ application {
 
 tasks.test {
 	useJUnitPlatform()
+}
+
+tasks.register<JavaExec>("abrirMinero") {
+	group = "application"
+	description = "Ejecuta el minero de forma independiente"
+	classpath = sourceSets["main"].runtimeClasspath
+	mainClass.set("minero.MainMineroKt")
+
+	if (project.hasProperty("args")) {
+		args = (project.property("args")).split(" ")
+	}
 }
 
 kotlin {
