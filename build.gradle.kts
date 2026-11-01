@@ -33,7 +33,7 @@ tasks.register<JavaExec>("abrirMinero") {
 	mainClass.set("minero.MainMineroKt")
 
 	if (project.hasProperty("args")) {
-		args = (project.property("args")).split(" ")
+		args = (project.property("args") as String).split(" ")
 	}
 }
 

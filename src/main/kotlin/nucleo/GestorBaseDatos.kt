@@ -89,7 +89,7 @@ class GestorBaseDatos(private val rutaBd: String = "musica.db") : AutoCloseable 
 		)
 		
 		conexion.createStatement().use { 
-			stmt -> sentenciasDdl.forEach { sql -> stmt.execute(sql) }
+			sentencia -> sentenciasDdl.forEach { sql -> sentencia.execute(sql) }
 		}
 	}
 

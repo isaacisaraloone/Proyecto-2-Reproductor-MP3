@@ -60,3 +60,5 @@ reporte/*.fdb_latexmk
 reporte/*fls
 
 bin/
+
+musica/

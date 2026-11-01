@@ -2,7 +2,7 @@
 
 =================================
 
-Proyecto 2 Reproductor MP3
+# Proyecto 2 Reproductor MP3
 
 =================================
 
