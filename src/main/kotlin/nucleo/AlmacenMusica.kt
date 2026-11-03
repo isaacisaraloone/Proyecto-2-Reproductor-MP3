@@ -36,14 +36,16 @@ class AlmacenMusica (private val conexion: Connection) {
 			val resultado = sentencia.executeQuery()
 			if (resultado.next()) return resultado.getInt("id_album")
 		}
-		 val consultaInsercion = "INSERT id_album FROM albums WHERE name = ? AND path = ? LIMIT 1;"
+		 val consultaInsercion = "INSERT INTO albums (path, name, year) VALUES (?, ?, ?);"
 		 conexion.prepareStatement(consultaInsercion, Statement.RETURN_GENERATED_KEYS).use { sentencia ->
 			sentencia.setString(1, rutaDirectorio)
 			sentencia.setString(2, nombreLimpio)
 			sentencia.setInt(3, anyo)
 			sentencia.executeUpdate()
+			val clavesGeneradas = sentencia.generatedKeys
+			if (clavesGeneradas.next()) return clavesGeneradas.getInt(1)
 		}
-		 return 0
+		throw IllegalStateException("No se pudo insertar el album: $nombreLimpio")
 	}
 	
 	fun insertarOIgnorarRola(rola: Rola): Int {
@@ -74,6 +76,52 @@ class AlmacenMusica (private val conexion: Connection) {
 		throw IllegalStateException("Error al insertar la rola: ${rola.titulo}")
 	}
 	
+	fun guardarRola(rola: Rola): Int {
+		val consultaExistente = "SELECT id_rola FROM rolas WHERE path = ? LIMIT 1;"
+		val idExistente: Int? = conexion.prepareStatement(consultaExistente).use { sentencia ->
+			sentencia.setString(1, rola.ruta)
+			val resultado = sentencia.executeQuery()
+			if (resultado.next()) return@use resultado.getInt("id_rola") else null
+		}
+		
+		if (idExistente != null) {
+			val consultaActualizacion = """
+				UPDATE rolas
+				SET id_performer = ?, id_album = ?, title = ?, track = ?, year = ?, genre = ?
+				WHERE id_rola = ?;
+			""".trimIndent()
+			conexion.prepareStatement(consultaActualizacion).use { sentencia ->
+				sentencia.setInt(1, rola.idInterprete)
+				sentencia.setInt(2, rola.idAlbum)
+				sentencia.setString(3, rola.titulo)
+				sentencia.setInt(4, rola.pista)
+				sentencia.setInt(5, rola.anyo)
+				sentencia.setString(6, rola.genero)
+				sentencia.setInt(7, idExistente)
+				sentencia.executeUpdate()
+			}
+			return idExistente
+		}
+		
+		val consultaInsercion = """
+			INSERT INTO rolas (id_performer, id_album, path, title, track, year, genre)
+			VALUES (?, ?, ?, ?, ?, ?, ?);
+		""".trimIndent()
+		conexion.prepareStatement(consultaInsercion, Statement.RETURN_GENERATED_KEYS).use { sentencia ->
+			sentencia.setInt(1, rola.idInterprete)
+			sentencia.setInt(2, rola.idAlbum)
+			sentencia.setString(3, rola.ruta)
+			sentencia.setString(4, rola.titulo)
+			sentencia.setInt(5, rola.pista)
+			sentencia.setInt(6, rola.anyo)
+			sentencia.setString(7, rola.genero)
+			sentencia.executeUpdate()
+			val clavesGeneradas = sentencia.generatedKeys
+			if (clavesGeneradas.next()) return clavesGeneradas.getInt(1)
+		}
+		throw IllegalStateException("Error al guardar la rola: ${rola.titulo}")
+	}
+	
 	fun actualizarMetadatosRola(
 		idRola: Int,
 		nuevoTitulo: String,
@@ -85,7 +133,7 @@ class AlmacenMusica (private val conexion: Connection) {
 	) {
 		val consulta = """
 			UPDATE rolas
-			SET  title = ?, track = ?, genre = ?, id_performer = ?, id_album = ?
+			SET  title = ?, track = ?, year = ?, genre = ?, id_performer = ?, id_album = ?
 			WHERE id_rola = ?;
 		""".trimIndent()
 		
@@ -105,8 +153,7 @@ class AlmacenMusica (private val conexion: Connection) {
 		val consultaActualizacion = "UPDATE performers SET id_type = ? WHERE id_performer = ?;"
 		conexion.prepareStatement(consultaActualizacion).use { sentencia ->
 			sentencia.setInt(1, tipo.id)
-			sentencia.setString(2, nombreInterprete.trim())
-			sentencia.setInt(3, idInterprete)
+			sentencia.setInt(2, idInterprete)
 			sentencia.executeUpdate()
 		}
 		
@@ -233,14 +280,16 @@ class AlmacenMusica (private val conexion: Connection) {
 				p.id_performer, p.name AS performer_name, p.id_type AS performer_type,
 				a.id_album, a.name AS album_name, a.path AS album_path
 			FROM rolas r
-			LEFT JOIN performers p ON r.id_performe = p.id_performer
+			LEFT JOIN performers p ON r.id_performer = p.id_performer
 			LEFT JOIN albums a ON r.id_album = a.id_album
 			""".trimIndent()
 		)
 		
 		if (clausulaWhere.isNotBlank()) {
-			consultaBase.append(" ORDER BY p.name ASC, a.name ASC, r.track ASC;")
+			consultaBase.append("\nWHERE ").append(clausulaWhere)
 		}
+		consultaBase.append("\nORDER BY p.name ASC, a.name ASC, r.track ASC;")
+		
 		val resultados = mutableListOf<VistaDetalleRola>()
 		conexion.prepareStatement(consultaBase.toString()).use { sentencia ->
 			parametros.forEachIndexed { indice, parametro ->

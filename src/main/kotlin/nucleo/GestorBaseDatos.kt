@@ -77,7 +77,7 @@ class GestorBaseDatos(private val rutaBd: String = "musica.db") : AutoCloseable 
                 id_rola INTEGER PRIMARY KEY,
                 id_performer INTEGER,
                 id_album INTEGER,
-                path TEXT UNIQUE,
+                path TEXT,
                 title TEXT,
                 track INTEGER,
                 year INTEGER,

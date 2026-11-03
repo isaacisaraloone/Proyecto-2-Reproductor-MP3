@@ -1,6 +1,12 @@
 plugins {
 	kotlin("jvm") version "2.0.20"
 	application
+	id("org.openjfx.javafxplugin") version "0.1.0"
+}
+	
+javafx {
+	version = "21"
+	modules = listOf("javafx.controls", "javafx.media")
 }
 
 group = "mx.unam.ciencias.myp"
