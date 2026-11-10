@@ -1,5 +1,6 @@
 package minero
 
+import com.mpatric.mp3agic.ID3v24Tag
 import com.mpatric.mp3agic.Mp3File
 import java.io.File
 import java.time.Instant
@@ -24,7 +25,7 @@ object Analizador {
 		        tag.artist?.trim()?.takeIf { it.isNotEmpty() }?.let { interprete = it }
 		        tag.album?.trim()?.takeIf { it.isNotEmpty() }?.let { album = it }
 		        tag.genreDescription?.trim()?.takeIf { it.isNotEmpty() }?.let { genero = it }
-		        tag.year?.let { anyo = extraerAnyo(it) }
+		        (tag.year ?: (tag as? ID3v24Tag)?.recordingTime)?.let { anyo = extraerAnyo(it) }
 		        tag.track?.let { pista = extraerNumPista(it) }
 		    } else if (mp3.hasId3v1Tag()) {
 		        val tag1 = mp3.id3v1Tag

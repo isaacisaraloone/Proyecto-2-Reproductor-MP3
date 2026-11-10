@@ -31,6 +31,7 @@ fun main(argumentos: Array<String>) = runBlocking {
 	val total = minero.minarDirectorio(rutaMusica) {
 		cantidad, archivo -> print("\rCanciones procesadas: $cantidad")
 	}
+	println()
 	println("Minado finalizado. Total de rolas guardadas: $total")
 	gestorBd.close()
 }
