@@ -12,12 +12,13 @@ class Main : Application() {
 	private val motorAudio = Reproductor()
 	private val gestorBD = GestorBaseDatos("musica.db")
 	private val almacenMusica = AlmacenMusica(gestorBD.conexion)
+	private var controlador: Controlador? = null
 
 	override fun start(escenarioPrin: Stage) {
 		gestorBD.iniciarEsquema()
 
 		val vista = Vista()
-		Controlador(vista, almacenMusica, motorAudio)
+		controlador = Controlador(vista, almacenMusica, motorAudio, gestorBD)
 
 		val escena = Scene(vista.panelRaiz, 1000.0, 620.0)
 		escenarioPrin.title = "Reproductor de Música"
@@ -27,7 +28,7 @@ class Main : Application() {
 
 	override fun stop() {
 		motorAudio.liberarRecursos()
-		gestorBD.close()
+		controlador?.cerrarBaseDatos() ?: gestorBD.close()
 	}
 }
 

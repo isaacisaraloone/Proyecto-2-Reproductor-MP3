@@ -1,9 +1,17 @@
 package interfaz
 
+import javafx.application.Platform
 import javafx.scene.control.Alert
 import javafx.scene.control.TableRow
+import javafx.stage.DirectoryChooser
+import javafx.stage.FileChooser
 import javafx.util.Duration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import minero.Audio
 import nucleo.AlmacenMusica
+import nucleo.GestorBaseDatos
 import reproductor.MotorAudio
 import reproductor.EstadoReproduccion
 import reproductor.OyenteMotorAudio
@@ -11,8 +19,9 @@ import java.io.File
 
 class Controlador(
     private val vista: Vista,
-    private val repositorio: AlmacenMusica,
-    private val motorAudio: MotorAudio
+    private var repositorio: AlmacenMusica,
+    private val motorAudio: MotorAudio,
+    private var gestorBD: GestorBaseDatos? = null
 ) : OyenteMotorAudio {
 
     private var usuarioDesplazandoBarra: Boolean = false
@@ -26,6 +35,7 @@ class Controlador(
         configurarEventosTransporte()
         configurarEventosEdicion()
         configurarEventosBusqueda()
+        configurarEventosArchivos()
 
         actualizarDatosTabla()
     }
@@ -128,8 +138,8 @@ class Controlador(
         }
     }
 
-    private fun configurarEventosBusqueda() {
-        vista.botonBuscar.setOnAction {
+	private fun configurarEventosBusqueda() {
+		vista.botonBuscar.setOnAction {
             val termino = vista.campoBusqueda.text.trim()
             if (termino.isBlank()) {
                 actualizarDatosTabla()
@@ -149,6 +159,84 @@ class Controlador(
             actualizarDatosTabla()
         }
     }
+    
+    private fun configurarEventosArchivos() {
+    	vista.botonMinarDirectorio.setOnAction {
+    		val ventana = vista.panelRaiz.scene?.window
+    		val selectorDirectorio = DirectoryChooser().apply {
+				title = "Seleccionar directorio de musica para minar"
+			}
+    		val directorioSeleccionado = selectorDirectorio.showDialog(ventana)
+    	
+    		vista.botonMinarDirectorio.isDisable = true
+    		vista.botonMinarDirectorio.text = "Minando..."
+    	
+    		val minero = Audio(repositorio)
+    		CoroutineScope(Dispatchers.IO).launch {
+    			try {
+    				val total = minero.minarDirectorio(directorioSeleccionado) {
+    					cantidad, _ -> Platform.runLater {
+    						vista.botonMinarDirectorio.text = "Minando ($cantidad)..."
+    					}
+    				}
+    				Platform.runLater {
+    					vista.botonMinarDirectorio.text = "Minar Directorio..."
+    					vista.botonMinarDirectorio.isDisable = false
+    					actualizarDatosTabla()
+    					mostrarNotificacion(
+    						"Minado Finalizado",
+    						"Se guardaron $total canciones desde:\n${directorioSeleccionado.absolutePath}"
+    					)
+					}
+    			} catch (e: Exception) {
+    				Platform.runLater {
+    					vista.botonMinarDirectorio.text = "Minar Directorio..."
+    					vista.botonMinarDirectorio.isDisable = false
+    					mostrarNotificacion(
+    						"Error al minar directorio",
+    						"Ocurrió un error al intentar minar el directorio: ${e.localizedMessage}",
+    						Alert.AlertType.ERROR
+    					)
+    				}
+    			}
+    		}
+    	}
+    	
+    	vista.botonCambiarBaseDatos.setOnAction{
+    		val ventana = vista.panelRaiz.scene?.window
+    		val selectorArchivo = FileChooser().apply {
+    			title = "Seleccionar archivo de Base de Datos"
+    			extensionFilters.addAll(
+    				FileChooser.ExtensionFilter("Bases de datos SQLite (*.db, *.sqlite)", "*.db", "*.sqlite"),
+    				FileChooser.ExtensionFilter("Todos los archivos (*.*)", "*.*")
+    			)
+    		}
+    		val archivoBd = selectorArchivo.showOpenDialog(ventana) ?: return@setOnAction
+    		
+    		try {
+    			gestorBD?.close()
+    			val nuevoGestor = GestorBaseDatos(archivoBd.absolutePath)
+    			nuevoGestor.iniciarEsquema()
+    			gestorBD = nuevoGestor
+    			repositorio = AlmacenMusica(nuevoGestor.conexion)
+    			actualizarDatosTabla()
+    			mostrarNotificacion(
+    				"Base de Datos Cargada",
+    				"Usando base de datos:\n${archivoBd.absolutePath}"
+    			)
+    		} catch (e: Exception) {
+    			mostrarNotificacion(
+    				"Error de Base de Dator",
+    				"No se pudo abrir la base de datos: ${e.localizedMessage}",
+    				Alert.AlertType.ERROR
+    			)
+    		}
+    	}
+	}
+	
+	fun cerrarBaseDatos() {
+		gestorBD?.close()
+	}
 
     private fun reproducirRolaSeleccionada(fila: FilaRola) {
         val archivoAudio = File(fila.rutaCancion)

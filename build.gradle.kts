@@ -25,7 +25,7 @@ dependencies {
 }
 
 application {
-	mainClass.set("MainKt")
+	mainClass.set("interfaz.MainKt")
 }
 
 tasks.test {

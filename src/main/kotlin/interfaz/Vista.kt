@@ -1,6 +1,7 @@
 package interfaz
 
 import javafx.geometry.Insets
+import javafx.geometry.Orientation
 import javafx.geometry.Pos
 import javafx.scene.control.*
 import javafx.scene.layout.*
@@ -15,7 +16,17 @@ class Vista {
 	}
 	val botonBuscar = Button("Buscar")
 	val botonRestablecer = Button("Restablecer")
-	val barraBusqueda = HBox(10.0, campoBusqueda, botonBuscar, botonRestablecer).apply {
+	val botonMinarDirectorio = Button("Minar Directorio...")
+	val botonCambiarBaseDatos = Button("Base de Datos...")
+	val barraBusqueda = HBox(
+		10.0,
+		campoBusqueda,
+		botonBuscar,
+		botonRestablecer,
+		Separator(Orientation.VERTICAL),
+		botonMinarDirectorio,
+		botonCambiarBaseDatos
+	).apply {
 		padding = Insets(10.0)
 		alignment = Pos.CENTER
 	}
