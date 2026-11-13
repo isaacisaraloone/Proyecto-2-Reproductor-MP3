@@ -246,6 +246,35 @@ class AlmacenMusica (private val conexion: Connection) {
 		 }
 	}
 	
+	fun quitarPersonaDeGrupo (idPersona: Int, idGrupo: Int) {
+		val consulta = "DELETE FROM in_group WHERE id_person = ? AND id_group = ?;"
+		conexion.prepareStatement(consulta).use { sentencia ->
+			sentencia.setInt(1, idPersona)
+			sentencia.setInt(2, idGrupo)
+			sentencia.executeUpdate()
+		}
+	}
+	
+	fun obtenerNombresMiembrosPorGrupo(): Map<String, List<String>> {
+		val mapa = mutableMapOf<String, MutableList<String>>()
+		val consulta = """
+			SELECT g.name AS group_name, p.stage_name, p.real_name
+			FROM groups g
+			INNER JOIN in_group ig ON g.id_group = ig.id_group
+			INNER JOIN persons p ON ig.id_person = p.id_person;
+		""".trimIndent()
+		conexion.createStatement().use { sentencia ->
+			val rs = sentencia.executeQuery(consulta)
+			while (rs.next()) {
+				val grupo = rs.getString("group_name")
+				val lista = mapa.getOrPut(grupo) { mutableListOf() }
+				rs.getString("stage_name")?.takeIf { it.isNotBlank() }?.let { lista.add(it) }
+				rs.getString("real_name")?.takeIf { it.isNotBlank() }?.let { lista.add(it) }
+			}
+		}
+		return mapa
+	}
+	
 	fun obtenerMiembrosDeGrupo(idGrupo: Int): List<Persona> {
 		val miembros = mutableListOf<Persona>()
 		val consulta = """
@@ -270,6 +299,45 @@ class AlmacenMusica (private val conexion: Connection) {
 			}
 		}
 		return miembros
+	}
+	
+	fun obtenerTodasLasPersonas(): List<Persona> {
+		val personas = mutableListOf<Persona>()
+		val consulta = "SELECT * FROM persons ORDER BY stage_name ASC;"
+		conexion.prepareStatement(consulta).use { sentencia ->
+			val resultado = sentencia.executeQuery()
+			while (resultado.next()) {
+				personas.add(
+					Persona(
+						idPersona = resultado.getInt("id_person"),
+						nombreArtistico = resultado.getString("stage_name") ?: "",
+						nombreReal = resultado.getString("real_name") ?: "",
+						fechaNacimiento = resultado.getString("birth_date") ?: "",
+						fechaFallecimiento = resultado.getString("death_date") ?: ""
+					)
+				)
+			}
+		}
+		return personas
+	}
+	
+	fun obtenerTodosLosGrupos(): List<GrupoMusical> {
+		val grupos = mutableListOf<GrupoMusical>()
+		val consulta = "SELECT * FROM groups ORDER BY name ASC;"
+		conexion.prepareStatement(consulta).use { sentencia ->
+			val resultado = sentencia.executeQuery()
+			while (resultado.next()) {
+				grupos.add(
+					GrupoMusical(
+						idGrupo = resultado.getInt("id_group"),
+						nombre = resultado.getString("name") ?: "",
+						fechaInicio = resultado.getString("start_date") ?: "",
+						fechaFin = resultado.getString("end_date") ?: ""
+					)
+				)
+			}
+		}
+		return grupos
 	}
 	
 	fun buscarRolasConWhere(clausulaWhere: String, parametros: List<Any>): List<VistaDetalleRola>{

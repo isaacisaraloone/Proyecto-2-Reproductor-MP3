@@ -1,12 +1,18 @@
 package minero
 
-import com.mpatric.mp3agic.ID3v24Tag
-import com.mpatric.mp3agic.Mp3File
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.FieldKey
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
+import java.util.logging.Level
+import java.util.logging.Logger
 
 object Analizador {
+	
+	init {
+		Logger.getLogger("org.jaudiotagger").level = Level.OFF
+	}
 
 	fun analizar(archivo: File): Extractor {
 		var titulo = "Unknown"
@@ -17,27 +23,19 @@ object Analizador {
 		var pista = 0
 		
 		try {
-		    val mp3 = Mp3File(archivo.absolutePath)
-		    
-		    if (mp3.hasId3v2Tag()){
-		        val tag = mp3.id3v2Tag
-		        tag.title?.trim()?.takeIf { it.isNotEmpty() }?.let { titulo = it } 
-		        tag.artist?.trim()?.takeIf { it.isNotEmpty() }?.let { interprete = it }
-		        tag.album?.trim()?.takeIf { it.isNotEmpty() }?.let { album = it }
-		        tag.genreDescription?.trim()?.takeIf { it.isNotEmpty() }?.let { genero = it }
-		        (tag.year ?: (tag as? ID3v24Tag)?.recordingTime)?.let { anyo = extraerAnyo(it) }
-		        tag.track?.let { pista = extraerNumPista(it) }
-		    } else if (mp3.hasId3v1Tag()) {
-		        val tag1 = mp3.id3v1Tag
-		        tag1.title?.trim()?.takeIf { it.isNotEmpty() }?.let { titulo = it } 
-		        tag1.artist?.trim()?.takeIf { it.isNotEmpty() }?.let { interprete = it }
-		        tag1.album?.trim()?.takeIf { it.isNotEmpty() }?.let { album = it }
-		        tag1.genreDescription?.trim()?.takeIf { it.isNotEmpty() }?.let { genero = it }
-		        tag1.year?.let { anyo = extraerAnyo(it) }
-		        tag1.track?.let { pista = extraerNumPista(it) }
+		    val audioFile = AudioFileIO.read(archivo)
+		    val tag = audioFile.tag
+		    if (tag != null){
+		        tag.getFirst(FieldKey.TITLE).trim().takeIf { it.isNotEmpty() }?.let { titulo = it }
+		        tag.getFirst(FieldKey.ARTIST).trim().takeIf { it.isNotEmpty() }?.let { interprete = it }
+		        tag.getFirst(FieldKey.ALBUM).trim().takeIf { it.isNotEmpty() }?.let { album = it }
+		        tag.getFirst(FieldKey.GENRE).trim().takeIf { it.isNotEmpty() }?.let { genero = it }
+		        tag.getFirst(FieldKey.YEAR).trim().takeIf { it.isNotEmpty() }?.let { anyo = extraerAnyo(it) }
+		        tag.getFirst(FieldKey.TRACK).trim().takeIf { it.isNotEmpty() }?.let { pista = extraerNumPista(it) }
 		    }
-		    
-		} catch (_: Exception) {}
+		} catch (e: Exception) {
+			System.err.println("Error al analizar ${archivo.name}: ${e.message}}")
+		}
 		
 		val anyoFinal = anyo ?: obtenerAnyoPorDefecto(archivo)
 		val rutaCancion = archivo.absolutePath

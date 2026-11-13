@@ -5,6 +5,9 @@ import java.sql.DriverManager
 
 class GestorBaseDatos(private val rutaBd: String = "musica.db") : AutoCloseable {
 	val conexion: Connection by lazy {
+		if (rutaBd != ":memory:") {
+			java.io.File(rutaBd).parentFile?.let { if (!it.exists()) it.mkdirs() }
+		}
         DriverManager.getConnection("jdbc:sqlite:$rutaBd").also { 
                 conn -> conn.createStatement().use { 
                         stmt -> stmt.execute("PRAGMA foreign_keys = ON;")

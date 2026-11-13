@@ -16,8 +16,10 @@ class Vista {
 	}
 	val botonBuscar = Button("Buscar")
 	val botonRestablecer = Button("Restablecer")
-	val botonMinarDirectorio = Button("Minar Directorio...")
-	val botonCambiarBaseDatos = Button("Base de Datos...")
+	val botonMinarDirectorio = Button("Minar Directorio")
+	val botonCambiarBaseDatos = Button("Base de Datos")
+	val botonIndividuos = Button("Artista")
+	val botonBandas = Button("Bandas")
 	val barraBusqueda = HBox(
 		10.0,
 		campoBusqueda,
@@ -25,7 +27,9 @@ class Vista {
 		botonRestablecer,
 		Separator(Orientation.VERTICAL),
 		botonMinarDirectorio,
-		botonCambiarBaseDatos
+		botonCambiarBaseDatos,
+		botonIndividuos,
+		botonBandas
 	).apply {
 		padding = Insets(10.0)
 		alignment = Pos.CENTER
@@ -85,8 +89,9 @@ class Vista {
 			botonGuardarCambios
 		)
 	}
-	val botonReproducir = Button("Reproducir")
-	val botonPausar = Button("Pausar")
+	val botonAnterior = Button("Anterior")
+	val botonReproducir = Button("Play")
+	val botonSiguiente = Button("Siguiente")
 	val botonDetener = Button("Detener")
 	val barraProgreso = Slider(0.0, 100.0, 0.0).apply {
 		HBox.setHgrow(this, Priority.ALWAYS)
@@ -95,7 +100,7 @@ class Vista {
 	val controlVolumen = Slider(0.0, 1.0, 1.0).apply {
 		prefWidth = 100.0
 	}
-	val barraInferior = HBox(10.0, botonReproducir, botonPausar, botonDetener, barraProgreso, etiquetaTiempo, Label("Volumen:"), controlVolumen).apply {
+	val barraInferior = HBox(10.0, botonAnterior, botonReproducir, botonSiguiente, botonDetener, barraProgreso, etiquetaTiempo, Label("Volumen:"), controlVolumen).apply {
 		padding = Insets(10.0)
 		alignment = Pos.CENTER
 	}

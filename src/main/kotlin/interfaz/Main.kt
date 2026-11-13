@@ -10,10 +10,20 @@ import reproductor.Reproductor
 class Main : Application() {
 
 	private val motorAudio = Reproductor()
-	private val gestorBD = GestorBaseDatos("musica.db")
+	private val gestorBD = GestorBaseDatos(obtenerRutaBaseDatosXdg())
 	private val almacenMusica = AlmacenMusica(gestorBD.conexion)
 	private var controlador: Controlador? = null
 
+	private fun obtenerRutaBaseDatosXdg(): String {
+		val xdgDataHome = System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }
+			?: (System.getProperty("user.home")+ "/.local/share")
+		val directorio = java.io.File(xdgDataHome, "reproductor-mp3")
+		if (!directorio.exists()) {
+			directorio.mkdirs()
+		}
+		return java.io.File(directorio, "musica.db").absolutePath
+	}
+	
 	override fun start(escenarioPrin: Stage) {
 		gestorBD.iniciarEsquema()
 

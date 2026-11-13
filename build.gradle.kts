@@ -5,7 +5,7 @@ plugins {
 }
 	
 javafx {
-	version = "21"
+	version = "21.0.4"
 	modules = listOf("javafx.controls", "javafx.media")
 }
 
@@ -17,7 +17,7 @@ repositories {
 }
 
 dependencies {
-	implementation("com.mpatric:mp3agic:0.9.1")
+	implementation("net.jthink:jaudiotagger:3.0.1")
 	implementation("org.xerial:sqlite-jdbc:3.46.1.0")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 	testImplementation(kotlin("test"))
