@@ -20,16 +20,10 @@ dependencies {
 	implementation("net.jthink:jaudiotagger:3.0.1")
 	implementation("org.xerial:sqlite-jdbc:3.46.1.0")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-	testImplementation(kotlin("test"))
-	testImplementation("org.junit.jupiter:junit-jupiter:5.11.0")
 }
 
 application {
 	mainClass.set("interfaz.MainKt")
-}
-
-tasks.test {
-	useJUnitPlatform()
 }
 
 tasks.register<JavaExec>("abrirMinero") {
@@ -41,6 +35,13 @@ tasks.register<JavaExec>("abrirMinero") {
 	if (project.hasProperty("args")) {
 		args = (project.property("args") as String).split(" ")
 	}
+}
+
+tasks.register<Exec>("compilarReporte") {
+	group = "documentation"
+	description = "Compila el reporte a PDF usando XeLaTeX"
+	workingDir = file("reporte")
+	commandLine("xelatex", "-interaction=nonstopmode", "reporte.tex")
 }
 
 kotlin {

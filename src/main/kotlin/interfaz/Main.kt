@@ -30,14 +30,21 @@ class Main : Application() {
 		val vista = Vista()
 		controlador = Controlador(vista, almacenMusica, motorAudio, gestorBD)
 
-		val escena = Scene(vista.panelRaiz, 1000.0, 620.0)
+		vista.panelRaiz.prefWidth = 410.0
+		val escena = Scene(vista.panelRaiz)
 		escenarioPrin.title = "Reproductor de Música"
 		escenarioPrin.scene = escena
+		escenarioPrin.minWidth = 370.0
+		escenarioPrin.minHeight = 450.0
+		escenarioPrin.setOnCloseRequest {
+			controlador?.cerrarVentanas()
+		}
 		escenarioPrin.show()
 	}
 
 	override fun stop() {
 		motorAudio.liberarRecursos()
+		controlador?.cerrarVentanas()
 		controlador?.cerrarBaseDatos() ?: gestorBD.close()
 	}
 }

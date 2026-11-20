@@ -12,6 +12,7 @@ Proyecto desarrollado para la materia **Modelado y Programacion**. Consiste en u
 
 - **JDK 21**
 - **Gradle** (incluido con `./gradlew`)
+- **XeLaTeX** (opcional para compilar el reporte PDF)
 
 ## Ejecucion
 
@@ -28,4 +29,9 @@ Ejecutar aplicacion grafica:
 Ejecutar el minero de forma independiente:
 ```bash
 ./gradlew abrirMinero -Pargs="<ruta_carpeta_musica> <ruta_base_datos.db>"
+```
+
+Para compilar el reporte:
+```bash
+./gradlew compilarReporte
 ```

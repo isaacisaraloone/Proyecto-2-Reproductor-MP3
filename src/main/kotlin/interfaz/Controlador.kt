@@ -2,16 +2,22 @@ package interfaz
 
 import javafx.application.Platform
 import javafx.geometry.Insets
+import javafx.geometry.Pos
 import javafx.scene.Scene
 import javafx.scene.control.Alert
 import javafx.scene.control.Button
 import javafx.scene.control.ComboBox
 import javafx.scene.control.Label
 import javafx.scene.control.ListView
+import javafx.scene.control.OverrunStyle
 import javafx.scene.control.Separator
 import javafx.scene.control.TableRow
 import javafx.scene.control.TextField
+import javafx.scene.control.Tooltip
+import javafx.scene.image.ImageView
+import javafx.scene.layout.StackPane
 import javafx.scene.layout.VBox
+import javafx.scene.text.TextAlignment
 import javafx.stage.DirectoryChooser
 import javafx.stage.FileChooser
 import javafx.stage.Modality
@@ -42,6 +48,10 @@ class Controlador(
     private var usuarioDesplazandoBarra: Boolean = false
     private var duracionTotalEnSegundos: Double = 0.0
     private var idRolaReproduciendo: Int? = null
+    private var ventanaBiblioteca: Stage? = null
+    private var siguienteDesplegado: Boolean = false
+    private var alturaMinimaBase: Double? = null
+    private val tarjetasCuadricula = mutableMapOf<Int, VBox>()
 
     init {
         motorAudio.registrarOyente(this)
@@ -51,6 +61,8 @@ class Controlador(
         configurarEventosEdicion()
         configurarEventosBusqueda()
         configurarEventosArchivos()
+        configurarEventosApendices()
+        configurarModosVistaBiblioteca()
     }
 
     private fun configurarEventosTabla() {
@@ -72,6 +84,8 @@ class Controlador(
                 vista.campoTextoGenero.text = rola.propiedadGenero.get()
                 vista.selectorTipoInterprete.value = rola.tipoInterprete
             }
+            actualizarEstadoSeleccionCuadricula(seleccionada?.idRola)
+            actualizarVistaSiguienteCancion()
         }
     }
 
@@ -82,6 +96,9 @@ class Controlador(
         		EstadoReproduccion.PAUSADO -> motorAudio.reproducir()
         		else -> {
         			val seleccionada = vista.tablaRolas.selectionModel.selectedItem
+						?: vista.tablaRolas.items.firstOrNull()?.also {
+							vista.tablaRolas.selectionModel.select(it)
+						}
         			if (seleccionada != null) {
         				reproducirRolaSeleccionada(seleccionada)
         			}
@@ -151,6 +168,10 @@ class Controlador(
             vista.tablaRolas.items
                 .filter { it.idInterprete == seleccionada.idInterprete }
                 .forEach { it.tipoInterprete = nuevoTipo }
+            if (seleccionada.idRola == idRolaReproduciendo) {
+                vista.etiquetaTituloActual.text = nuevoTitulo
+            }
+            actualizarVistaSiguienteCancion()
 
             mostrarNotificacion("Listo", "Metadatos actualizados en la base de datos.")
         }
@@ -343,7 +364,7 @@ class Controlador(
     		val selectorDirectorio = DirectoryChooser().apply {
 				title = "Seleccionar directorio de musica para minar"
 			}
-    		val directorioSeleccionado = selectorDirectorio.showDialog(ventana)
+    		val directorioSeleccionado = selectorDirectorio.showDialog(ventana) ?: return@setOnAction
     	
     		vista.botonMinarDirectorio.isDisable = true
     		vista.botonMinarDirectorio.text = "Minando..."
@@ -411,7 +432,7 @@ class Controlador(
     		}
     	}
     	
-    	vista.botonIndividuos.setOnAction {
+    	vista.botonArtista.setOnAction {
     		abrirVentanaIndividuos()
     	}
     	
@@ -422,9 +443,9 @@ class Controlador(
 	
 	private fun abrirVentanaIndividuos() {
         val ventana = Stage().apply {
-            title = "Individuos"
+            title = "Artistas"
             initModality(Modality.APPLICATION_MODAL)
-            vista.panelRaiz.scene?.window?.let { initOwner(it) }
+            (vista.panelBiblioteca.scene?.window ?: vista.panelRaiz.scene?.window)?.let { initOwner(it) }
         }
 
         val campoNombreArtistico = TextField().apply { promptText = "Nombre artístico (obligatorio)" }
@@ -495,7 +516,7 @@ class Controlador(
         val ventana = Stage().apply {
             title = "Bandas"
             initModality(Modality.APPLICATION_MODAL)
-            vista.panelRaiz.scene?.window?.let { initOwner(it) }
+            (vista.panelBiblioteca.scene?.window ?: vista.panelRaiz.scene?.window)?.let { initOwner(it) }
         }
 
         val selectorBanda = ComboBox<GrupoMusical>().apply {
@@ -587,14 +608,89 @@ class Controlador(
         ventana.showAndWait()
     }
 	
+    fun cerrarVentanas() {
+        ventanaBiblioteca?.close()
+        ventanaBiblioteca = null
+    }
+    
 	fun cerrarBaseDatos() {
 		gestorBD?.close()
 	}
+	
+	private fun configurarEventosApendices() {
+        vista.botonApendiceSiguiente.setOnAction {
+            siguienteDesplegado = !siguienteDesplegado
+            vista.panelSiguienteCancion.isVisible = siguienteDesplegado
+            vista.panelSiguienteCancion.isManaged = siguienteDesplegado
+            vista.botonApendiceSiguiente.text = if (siguienteDesplegado) "▲ Siguiente canción" else "▼ Siguiente canción"
+            actualizarVistaSiguienteCancion()
+            ajustarVentanaPrincipalAlContenido()
+        }
+        vista.botonApendiceBiblioteca.setOnAction {
+            abrirVentanaBiblioteca()
+        }
+    }
+	
+    private fun ajustarVentanaPrincipalAlContenido(){
+        val stage = vista.panelRaiz.scene?.window as? Stage ?: return
+        val escena = stage.scene ?: return
+        val base = alturaMinimaBase ?: stage.minHeight.also { alturaMinimaBase = it }
+        val altoDecoracion = (stage.height - escena.height).coerceAtLeast(0.0)
+        
+        vista.panelRaiz.prefWidth = escena.width
+        vista.panelRaiz.applyCss()
+        vista.panelRaiz.layout()
+        val altoNecesario = maxOf(vista.panelRaiz.prefHeight(escena.width) + altoDecoracion, base)
+        
+        if (!siguienteDesplegado) stage.minHeight = base
+        stage.sizeToScene()
+        if (siguienteDesplegado) stage.minHeight = altoNecesario
+    }
+    
+	private fun configurarModosVistaBiblioteca() {
+        vista.grupoModoVista.selectedToggleProperty().addListener { _, anterior, nuevo ->
+            if (nuevo == null) {
+                anterior?.isSelected = true
+                return@addListener
+            }
+            val mostrarCuadricula = (nuevo == vista.botonVistaCuadricula)
+            vista.scrollCuadricula.isVisible = mostrarCuadricula
+            vista.scrollCuadricula.isManaged = mostrarCuadricula
+            vista.tablaRolas.isVisible = !mostrarCuadricula
+            vista.tablaRolas.isManaged = !mostrarCuadricula
+        }
+    }
+	
+	private fun abrirVentanaBiblioteca() {
+        val existente = ventanaBiblioteca
+        if (existente != null) {
+            if (!existente.isShowing) {
+                existente.show()
+            }
+            existente.toFront()
+            existente.requestFocus()
+            return
+        }
+        val ventana = Stage().apply {
+            title = "Biblioteca y Gestión de Música"
+            scene = Scene(vista.panelBiblioteca, 1020.0, 640.0)
+            minWidth = 820.0
+            minHeight = 520.0
+            (vista.panelRaiz.scene?.window as? Stage)?.let { principal ->
+                x = principal.x + principal.width + 12.0
+                y = principal.y
+            }
+        }
+        ventanaBiblioteca = ventana
+        ventana.show()
+    }
 
     private fun reproducirRolaSeleccionada(fila: FilaRola) {
         val archivoAudio = File(fila.rutaCancion)
         if (archivoAudio.exists()) {
             idRolaReproduciendo = fila.idRola
+            actualizarPanelPrincipalConRola(fila)
+            actualizarVistaSiguienteCancion()
             motorAudio.cargarPista(archivoAudio)
             motorAudio.reproducir()
         } else {
@@ -602,6 +698,41 @@ class Controlador(
         }
     }
 
+    private fun actualizarPanelPrincipalConRola(fila: FilaRola) {
+        vista.etiquetaTituloActual.text = fila.propiedadTitulo.get()
+        vista.etiquetaInterpreteActual.text = "${fila.propiedadInterprete.get()} — ${fila.propiedadAlbum.get()}"
+        vista.imagenCaratulaPrincipal.image = null
+        vista.etiquetaSinCaratulaPrincipal.isVisible = true
+        GestorCaratula.cargarCaratulaAsync(fila.rutaCancion) { img ->
+            if (idRolaReproduciendo == fila.idRola) {
+                vista.imagenCaratulaPrincipal.image = img
+                vista.etiquetaSinCaratulaPrincipal.isVisible = (img == null)
+            }
+        }
+    }
+    
+    private fun actualizarVistaSiguienteCancion() {
+        val items = vista.tablaRolas.items
+        val indiceActual = items.indexOfFirst { it.idRola == idRolaReproduciendo }
+            .takeIf { it >= 0 } ?: vista.tablaRolas.selectionModel.selectedIndex
+        if (indiceActual in 0 until items.size - 1) {
+            val siguiente = items[indiceActual + 1]
+            vista.etiquetaSiguienteTitulo.text = siguiente.propiedadTitulo.get()
+            vista.etiquetaSiguienteDetalle.text = "${siguiente.propiedadInterprete.get()} — ${siguiente.propiedadAlbum.get()}"
+            vista.imagenCaratulaSiguiente.image = null
+            vista.etiquetaSinCaratulaSiguiente.isVisible = true
+            GestorCaratula.cargarCaratulaAsync(siguiente.rutaCancion) { img ->
+                vista.imagenCaratulaSiguiente.image = img
+                vista.etiquetaSinCaratulaSiguiente.isVisible = (img == null)
+            }
+        } else {
+            vista.etiquetaSiguienteTitulo.text = "No hay siguiente canción"
+            vista.etiquetaSiguienteDetalle.text = ""
+            vista.imagenCaratulaSiguiente.image = null
+            vista.etiquetaSinCaratulaSiguiente.isVisible = true
+        }
+    }
+    
     fun actualizarDatosTabla() {
         val rolas = repositorio.obtenerTodasLasRolasDetalladas()
         cargarResultadosEnTabla(rolas)
@@ -624,21 +755,96 @@ class Controlador(
             )
         }
         vista.tablaRolas.items.setAll(filas)
+        reconstruirCuadricula(filas)
+        actualizarVistaSiguienteCancion()
+    }
+    
+    private fun reconstruirCuadricula(filas: List<FilaRola>){
+        vista.panelCuadricula.children.clear()
+        tarjetasCuadricula.clear()
+        val idSeleccionado = vista.tablaRolas.selectionModel.selectedItem?.idRola
+        for (fila in filas) {
+            val marcador = Label("♪").apply {
+                style = "-fx-font-size: 34px; -fx-text-fill: #64748B;"
+            }
+            val imagen = ImageView().apply {
+                fitWidth = 116.0
+                fitHeight = 116.0
+                isPreserveRatio = true
+                isSmooth = true
+            }
+            val marcoCaratula = StackPane(marcador, imagen).apply {
+                prefWidth = 120.0
+                prefHeight = 120.0
+                minWidth = 120.0
+                minHeight = 120.0
+                style = "-fx-background-color: #1E293B; -fx-background-radius: 6px;"
+            }
+            GestorCaratula.cargarCaratulaAsync(fila.rutaCancion) { img ->
+                imagen.image = img
+                marcador.isVisible = (img == null)
+            }
+            
+            val etiquetaNombre = Label().apply {
+                textProperty().bind(fila.propiedadTitulo)
+                maxWidth = 120.0
+                isWrapText = true
+                textAlignment = TextAlignment.CENTER
+                alignment = Pos.CENTER
+                textOverrun = OverrunStyle.ELLIPSIS
+                style = "-fx-font-size: 11px; -fx-font-weight: bold;"
+            }
+            val tarjeta = VBox(6.0, marcoCaratula, etiquetaNombre).apply {
+                padding = Insets(8.0)
+                prefWidth = 136.0
+                alignment = Pos.TOP_CENTER
+                Tooltip.install(this, Tooltip("${fila.propiedadTitulo.get()}\n${fila.propiedadInterprete.get()}"))
+                setOnMouseClicked { evento ->
+                    vista.tablaRolas.selectionModel.select(fila)
+                    if (evento.clickCount == 2) {
+                        reproducirRolaSeleccionada(fila)
+                    }
+                }
+            }
+            tarjetasCuadricula[fila.idRola] = tarjeta
+            vista.panelCuadricula.children.add(tarjeta)
+        }
+        actualizarEstadoSeleccionCuadricula(idSeleccionado)
+    }
+    
+    private fun actualizarEstadoSeleccionCuadricula(idSeleccionado: Int?) {
+        tarjetasCuadricula.forEach { (idRola, tarjeta) ->
+            tarjeta.style = if (idRola == idSeleccionado) {
+                "-fx-background-color: #DBEAFE; -fx-background-radius: 8px; -fx-border-color: #2563EB; -fx-border-radius: 8px; -fx-cursor: hand;"
+            } else {
+                "-fx-background-color: #F8FAFC; -fx-background-radius: 8px; -fx-border-color: #E2E8F0; -fx-border-radius: 8px; -fx-cursor: hand;"
+            }
+        }
     }
 
     override fun alCambiarEstado(nuevoEstado: EstadoReproduccion) {
         when (nuevoEstado) {
-            EstadoReproduccion.REPRODUCIENDO -> vista.botonReproducir.text = "Reproduciendo"
-            EstadoReproduccion.PAUSADO -> vista.botonReproducir.text = "Pausado"
+            EstadoReproduccion.REPRODUCIENDO -> {
+            	vista.botonReproducir.text = "⏸"
+            	vista.botonReproducir.tooltip = Tooltip("Pausar")
+            }
+            EstadoReproduccion.PAUSADO -> {
+                vista.botonReproducir.text = "▶"
+                vista.botonReproducir.tooltip = Tooltip("Reproducir")
+            }
             EstadoReproduccion.DETENIDO -> {
-                vista.botonReproducir.text = "Reproducir"
+                vista.botonReproducir.text = "▶"
+                vista.botonReproducir.tooltip = Tooltip("Reproducir")
                 vista.barraProgreso.value = 0.0
                 vista.etiquetaTiempo.text = "00:00 / 00:00"
             }
-            EstadoReproduccion.ERROR -> vista.botonReproducir.text = "Error"
+            EstadoReproduccion.ERROR -> {
+            	vista.botonReproducir.text = "▶"
+            	vista.botonReproducir.tooltip = Tooltip("Reproducir")
+            }
         }
     }
-
+        
     override fun alCambiarProgreso(tiempoActual: Duration, duracionTotal: Duration) {
         val segundosTotales = duracionTotal.toSeconds()
         if (duracionTotal.isUnknown || segundosTotales <= 0.0 || usuarioDesplazandoBarra) return
