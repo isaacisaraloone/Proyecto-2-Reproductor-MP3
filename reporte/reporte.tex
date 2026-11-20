@@ -1,0 +1,373 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[spanish]{babel}
+\usepackage{fontspec}
+\setmainfont{Noto Sans}
+\setmonofont{Noto Sans Mono}
+\usepackage{geometry}
+\geometry{top=2cm, bottom=2cm, left=2.2cm, right=2.2cm}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usetikzlibrary{babel,shapes.geometric,arrows.meta,positioning,fit,backgrounds,calc}
+\usepackage{hyperref}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=blue!70!black,
+    urlcolor=blue!70!black
+}
+
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.97,0.97,0.97}
+\definecolor{codeblue}{rgb}{0.13,0.13,0.7}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegray}\itshape,
+    keywordstyle=\color{codeblue}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+\title{\textbf{Reporte Proyecto 2: Modelado e Implementación de un Reproductor MP3 y Minero de Metadatos}}
+\author{Alvarado Trujillo Isaac Armando}
+
+\begin{document}
+
+\maketitle
+
+\section{Resumen}
+Proyecto desarrollado para la materia de Modelado y Programación. Consiste en una aplicación de escritorio implementada en Kotlin sobre la JVM para la gestión, minería de metadatos y reproducción de colecciones locales de audio MP3. El sistema sigue una arquitectura Modelo-Vista-Controlador (MVC), extrae etiquetas ID3 de manera concurrente sin alterar los archivos físicos originales, persiste la información en una base de datos relacional SQLite ubicada conforme a la especificación XDG, ofrece un buscador en tiempo real con sintaxis de filtros inspirada en SQL y presenta una interfaz JavaFX de doble ventana (reproductor compacto con apéndices desplegables y ventana de biblioteca con vista en lista o cuadrícula de carátulas).
+
+\section{Introducción}
+
+\subsection{Objetivo del Proyecto}
+Modelar, diseñar e implementar una solución integral de gestión musical local que permita indexar recursivamente archivos MP3 en una base de datos relacional SQLite, consultar pistas mediante un motor de búsqueda flexible en tiempo real, administrar intérpretes (artistas individuales y bandas con sus integrantes) y reproducir audio multimedia respetando estrictamente el principio de inmutabilidad de los archivos físicos en disco.
+
+\subsection{Alcance}
+El sistema contempla los siguientes módulos y capacidades:
+\begin{itemize}
+    \item \textbf{Minado recursivo de etiquetas ID3:} Recorrido de directorios mediante corrutinas para extraer título, intérprete, álbum, año, número de pista y género, aplicando valores por omisión consistentes cuando falten metadatos.
+    \item \textbf{Ejecución dual (GUI y CLI):} Posibilidad de ejecutar el minero integrado desde la interfaz gráfica (con actualización progresiva) o de manera autónoma desde terminal mediante Gradle (\texttt{abrirMinero}).
+    \item \textbf{Persistencia relacional SQLite y estándar XDG:} Esquema normalizado con siete tablas e integridad referencial activa, almacenado por defecto en \texttt{\$XDG\_DATA\_HOME/reproductor-mp3/musica.db}, además de permitir la carga manual de bases de datos externas.
+    \item \textbf{Buscador avanzado en tiempo real:} Filtrado instantáneo insensible a acentos y mayúsculas con prefijos de dos letras (\texttt{ti:}, \texttt{ar:}, \texttt{in:}, \texttt{al:}, \texttt{ge:}, \texttt{an:}), negación (\texttt{-}), comparaciones numéricas, rangos y recuperación de canciones de banda al buscar por un integrante.
+    \item \textbf{Gestión relacional de artistas y bandas:} Clasificación de intérpretes, registro independiente de personas, y vinculación o desvinculación de integrantes en agrupaciones musicales.
+    \item \textbf{Reproductor compacto y biblioteca desacoplada:} Ventana principal compacta con carátula central, controles unificados de reproducción, apéndice inferior desplegable con vista previa de la siguiente canción y apéndice lateral derecho que abre la biblioteca completa (modos Lista y Cuadrícula) junto al editor de metadatos.
+\end{itemize}
+
+\subsection{Posibles problemas enfrentados y facilidades encontradas}
+Durante el desarrollo se identificaron diversas complejidades técnicas:
+\begin{itemize}
+    \item \textbf{Encabezados extendidos en ID3v2.4:} La biblioteca inicial \texttt{mp3agic:0.9.1} fallaba al decodificar archivos MP3 con bandera de encabezado extendido en ID3v2.4, regresando valores por omisión. Esto se resolvio cambiando a \texttt{jaudiotagger:3.0.1}.
+    \item \textbf{Creación de rutas padre en SQLite:} Al introducir la ruta XDG (\texttt{\~/.local/share/reproductor-mp3/musica.db}) desde el minero CLI, SQLite arrojaba \texttt{SQLException} si el subdirectorio no existía previamente. Se corrigió creando los directorios padre desde \texttt{GestorBaseDatos}.
+    \item \textbf{Búsqueda flexible sin escribir SQL:} SQLite \texttt{LIKE} distingue caracteres acentuados en Unicode. Se implementó un analizador léxico propio en memoria con normalización para ignorar tildes y combinar condiciones.
+\end{itemize}
+Las facilidades destacadas fueron:
+\begin{itemize}
+    \item \textbf{Kotlin y Coroutines:} La seguridad ante nulos y el uso de funciones \texttt{suspend} con \texttt{Dispatchers.IO} permitieron reutilizar exactamente la misma lógica de minado en consola y en la interfaz gráfica sin bloquear el hilo de JavaFX.
+    \item \textbf{JAudioTagger y JavaFX:} \texttt{AudioFileIO.read()} unificó el acceso a etiquetas ID3v1/v2 y carátulas embebidas (\texttt{firstArtwork}), mientras que JavaFX (\texttt{MediaPlayer}, \texttt{TableView}, \texttt{FlowPane}) simplificó la interfaz reactiva y multimedia.
+\end{itemize}
+
+\section{Análisis y Diseño (Modelado)}
+Para cumplir con los requerimientos funcionales y no funcionales, el sistema se estructuró aplicando separación de tareas.
+
+\subsection{Patrones de Diseño y Principios Arquitectónicos}
+El proyecto implementa los siguientes patrones arquitectónicos:
+\begin{enumerate}
+    \item \textbf{Patrón Modelo-Vista-Controlador (MVC):}
+    \begin{itemize}
+        \item \textit{Modelo (\texttt{nucleo} y \texttt{reproductor}):} Encapsula las entidades de dominio, la persistencia SQL y la máquina de reproducción sin referencias a controles visuales.
+        \item \textit{Vista (\texttt{Vista.kt}):} Define de manera declarativa/programática los nodos JavaFX tanto de la ventana compacta como de la ventana de biblioteca.
+        \item \textit{Controlador (\texttt{Controlador.kt}):} Coordina eventos de usuario, búsqueda, minado asíncrono, edición de datos, ventanas modales y actualización de carátulas.
+    \end{itemize}
+    \item \textbf{Patrón Observador:} Definido por la interfaz \texttt{OyenteMotorAudio} y \texttt{MotorAudio}. La clase \texttt{Reproductor} notifica cambios de estado (\texttt{alCambiarEstado}), progreso temporal (\texttt{alCambiarProgreso}), término de pista (\texttt{alFinalizarCancion}) y errores (\texttt{alOcurrirError}) al controlador sin acoplarse a la interfaz gráfica.
+    \item \textbf{Patrón Repositorio / Objeto de Acceso a Datos:} \texttt{AlmacenMusica} centraliza todas las sentencias parametrizadas (\texttt{PreparedStatement}), deduplicación de intérpretes y álbumes, y consultas detalladas con \texttt{LEFT JOIN}.
+    \item \textbf{Caché bajo demanda:} Almacena en un \texttt{ConcurrentHashMap} las imágenes extraídas de etiquetas ID3 o de archivos locales de carpeta (\texttt{cover.*}, \texttt{folder.*}) cargadas de forma asíncrona para no congelar la vista en cuadrícula.
+\end{enumerate}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    scale=0.82, every node/.style={transform shape},
+    node distance=1.3cm,
+    block/.style={rectangle, draw=blue!70, fill=blue!10, rounded corners, align=center, minimum height=1cm, minimum width=3cm, font=\small\bfseries},
+    uiblock/.style={rectangle, draw=green!60!black, fill=green!10, rounded corners, align=center, minimum height=1cm, minimum width=3cm, font=\small\bfseries},
+    data/.style={cylinder, draw=purple!70, fill=purple!10, shape border rotate=90, aspect=0.25, align=center, minimum height=1.1cm, minimum width=2.8cm, font=\small\bfseries},
+    arrow/.style={thick, ->, >=stealth}
+]
+
+\node[uiblock] (vista) {Vista JavaFX\\(Reproductor / Biblioteca)};
+\node[uiblock, below=0.7cm of vista] (ctrl) {Controlador\\(Controlador.kt)};
+\node[uiblock, below=0.7cm of ctrl] (caratulas) {GestorCaratulas\\(Caché / ID3 Artwork)};
+
+\begin{scope}[on background layer]
+    \node[draw=green!50!black, fill=green!5, dashed, rounded corners, fit=(vista) (ctrl) (caratulas), label=above:\textbf{Capa de Presentación (interfaz)}] {};
+\end{scope}
+
+\node[block, right=3.2cm of vista] (repro) {Motor Multimedia\\(Reproductor / MediaPlayer)};
+\node[block, right=3.2cm of ctrl] (minero) {Minero Concurrente\\(Audio / Analizador)};
+\node[block, below=0.7cm of minero] (almacen) {Repositorio SQL\\(AlmacenMusica / GestorBD)};
+\node[data, right=1.2cm of almacen] (sqlite) {SQLite\\(XDG .db)};
+
+\begin{scope}[on background layer]
+    \node[draw=blue!70, fill=blue!5, dashed, rounded corners, fit=(repro) (minero) (almacen) (sqlite), label=above:\textbf{Núcleo, Minería y Audio}] {};
+\end{scope}
+
+\draw[arrow, <->] (vista) -- (ctrl);
+\draw[arrow] (ctrl) -- (caratulas);
+\draw[arrow, <->] (ctrl) -- node[above, font=\tiny] {MotorAudio / Oyente} (repro);
+\draw[arrow] (ctrl) -- node[above, font=\tiny] {Coroutines IO} (minero);
+\draw[arrow, <->] (ctrl) to[bend right=12] (almacen);
+\draw[arrow] (minero) -- (almacen);
+\draw[arrow, <->] (almacen) -- node[above, font=\tiny] {JDBC} (sqlite);
+
+\end{tikzpicture}
+\caption{Diagrama de arquitectura modular del reproductor MP3 y minero.}
+\label{fig:arquitectura}
+\end{figure}
+
+\subsection{Modelado de Estructuras de Datos y Clases}
+\subsubsection{Paquete \texttt{nucleo} (Modelo y Persistencia)}
+\begin{itemize}[noitemsep]
+    \item \texttt{TipoInterprete}: Enumeración (\texttt{PERSONA(0)}, \texttt{GRUPO(1)}, \texttt{DESCONOCIDO(2)}) mapeada con el catálogo \texttt{types}.
+    \item \texttt{Interprete}, \texttt{Persona}, \texttt{GrupoMusical}: Modelan intérpretes unificados, artistas individuales y bandas.
+    \item \texttt{Album}, \texttt{Rola} y \texttt{VistaDetalleRola}: Representan discos con su ruta, pistas individuales y la proyección combinada consumida por la tabla y la cuadrícula.
+    \item \texttt{GestorBaseDatos} y \texttt{AlmacenMusica}: Administran la conexión SQLite, creación de tablas DDL, consultas y operaciones.
+\end{itemize}
+
+\subsubsection{Paquetes \texttt{minero}, \texttt{reproductor} e \texttt{interfaz}}
+\begin{itemize}[noitemsep]
+    \item \texttt{Extractor}, \texttt{Analizador}, \texttt{Audio}, \texttt{MainMinero}: inmutable de extracción, parser sobre \texttt{jaudiotagger}, orquestador recursivo con \texttt{Dispatchers.IO} y punto de entrada CLI.
+    \item \texttt{EstadoReproduccion}, \texttt{OyenteMotorAudio}, \texttt{MotorAudio}, \texttt{Reproductor}: Contratos desacoplados e implementación JavaFX sobre \texttt{MediaPlayer}.
+    \item \texttt{Main}, \texttt{Vista}, \texttt{Controlador}, \texttt{FilaRola}, \texttt{GestorCaratulas}: Aplicación JavaFX, ventanas principal/biblioteca, lógica de búsqueda/edición, propiedades observables JavaFX y caché de carátulas.
+\end{itemize}
+
+\subsection{Esquema Relacional de la Base de Datos (SQLite)}
+Al abrir o crear la base de datos, \texttt{GestorBaseDatos.iniciarEsquema()} ejecuta las sentencias DDL equivalentes a \texttt{src/main/resources/rolas.sql} con llaves foráneas activas. En la Tabla~\ref{tab:esquema_bd} se detallan las siete tablas del modelo.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{0.95}
+\begin{tabularx}{\textwidth}{l l p{4.8cm} X}
+\toprule
+\textbf{Tabla} & \textbf{Llave Primaria} & \textbf{Atributos y FKs} & \textbf{Propósito en el Dominio} \\
+\midrule
+\texttt{types} & \texttt{id\_type} & \texttt{description} & Catálogo base: \texttt{0} (Person), \texttt{1} (Group), \texttt{2} (Unknown). \\
+\texttt{performers} & \texttt{id\_performer} & \texttt{id\_type} (FK), \texttt{name} & Intérprete general asignado a cada canción. \\
+\texttt{persons} & \texttt{id\_person} & \texttt{stage\_name}, \texttt{real\_name}, \texttt{birth\_date}, \texttt{death\_date} & Datos biográficos de artistas individuales o miembros de banda. \\
+\texttt{groups} & \texttt{id\_group} & \texttt{name}, \texttt{start\_date}, \texttt{end\_date} & Agrupaciones musicales registradas. \\
+\texttt{in\_group} & \texttt{(id\_person, id\_group)} & \texttt{id\_person} (FK), \texttt{id\_group} (FK) & Relación muchos a muchos entre personas y bandas. \\
+\texttt{albums} & \texttt{id\_album} & \texttt{path}, \texttt{name}, \texttt{year} & Álbum contenedor y ruta de su directorio padre. \\
+\texttt{rolas} & \texttt{id\_rola} & \texttt{id\_performer} (FK), \texttt{id\_album} (FK), \texttt{path}, \texttt{title}, \texttt{track}, \texttt{year}, \texttt{genre} & Pista musical indexada con ruta absoluta y metadatos. \\
+\bottomrule
+\end{tabularx}
+\caption{Estructura de tablas del esquema relacional SQLite.}
+\label{tab:esquema_bd}
+\end{table}
+
+\subsection{Mapeo ID3 y Especificación del Buscador}
+En la Tabla~\ref{tab:mapeo_id3} se resume el mapeo de campos extraídos con \texttt{jaudiotagger} hacia SQLite y la interfaz. Por su parte, la Tabla~\ref{tab:buscador} detalla la sintaxis admitida por el buscador en tiempo real sin necesidad de escribir sentencias SQL.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{0.92}
+\begin{tabularx}{\textwidth}{l l l X}
+\toprule
+\textbf{Clave (\texttt{FieldKey})} & \textbf{Trama ID3v2.4} & \textbf{Destino} & \textbf{Tratamiento y Valor por Omisión} \\
+\midrule
+\texttt{FieldKey.TITLE} & \texttt{TIT2} & \texttt{rolas.title} & Cadena recortada; por omisión \texttt{"Unknown"}. \\
+\texttt{FieldKey.ARTIST} & \texttt{TPE1} & \texttt{performers.name} & Se vincula o crea con \texttt{id\_type = 2}; por omisión \texttt{"Unknown"}. \\
+\texttt{FieldKey.ALBUM} & \texttt{TALB} & \texttt{albums.name} & Deduplicado por nombre y carpeta padre; por omisión \texttt{"Unknown"}. \\
+\texttt{FieldKey.YEAR} & \texttt{TDRC} & \texttt{rolas.year} & Extrae 4 dígitos (\texttt{19xx}/\texttt{20xx}); si falta, usa año del archivo. \\
+\texttt{FieldKey.TRACK} & \texttt{TRCK} & \texttt{rolas.track} & Entero previo a \texttt{/} (ej. \texttt{"3/10"} $\rightarrow$ \texttt{3}); por omisión \texttt{0}. \\
+\texttt{FieldKey.GENRE} & \texttt{TCON} & \texttt{rolas.genre} & Género textual; por omisión \texttt{"Unknown"}. \\
+\texttt{firstArtwork} & \texttt{APIC} & Caché UI & Imagen embebida en memoria (o archivo local \texttt{cover.*} / \texttt{folder.*}). \\
+\bottomrule
+\end{tabularx}
+\caption{Mapeo de metadatos ID3 mediante \texttt{jaudiotagger} y reglas de respaldo.}
+\label{tab:mapeo_id3}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{0.92}
+\begin{tabularx}{\textwidth}{l p{4.2cm} X}
+\toprule
+\textbf{Elemento} & \textbf{Ejemplo de Uso} & \textbf{Comportamiento Evaluado} \\
+\midrule
+Prefijos (2 letras) & \texttt{ti:}, \texttt{ar:}, \texttt{in:}, \texttt{al:}, \texttt{ge:}, \texttt{an:}, \texttt{pi:} & Filtran por título, intérprete/miembro de banda, álbum, género, año o pista. \\
+Conjunción (\texttt{\&} / \texttt{AND}) & \texttt{ar:Queen \& an:1975} & Exige que todas las condiciones separadas por espacio, \texttt{\&} o \texttt{AND} se cumplan. \\
+Disyunción (\texttt{OR}) & \texttt{ge:Rock OR ge:Jazz} & Devuelve pistas que satisfagan al menos uno de los grupos lógicos. \\
+Negación (\texttt{-}) & \texttt{ar:Queen -ge:Pop} & Excluye pistas que coincidan con el término negado. \\
+Comillas y rangos & \texttt{al:"A Night"} \texttt{an:1970..1980} & Agrupa valores con espacios; evalúa rangos (\texttt{..}) y operadores (\texttt{>}, \texttt{<}, \texttt{>=}, \texttt{<=}, \texttt{=}). \\
+Normalización & \texttt{cancion} $\leftrightarrow$ \texttt{Canción} & Descompone en forma \texttt{NFD}, elimina acentos/diacríticos y compara en minúsculas. \\
+\bottomrule
+\end{tabularx}
+\caption{Sintaxis de consultas soportada por el buscador en tiempo real.}
+\label{tab:buscador}
+\end{table}
+
+\subsection{Diagramas de Comportamiento}
+
+\subsubsection{Diagrama de Secuencia: Minado Concurrente y Actualización de Vista}
+La Figura~\ref{fig:seq_minado} muestra la interacción entre el usuario, el controlador JavaFX y la tubería asíncrona del minero sin bloquear la interfaz gráfica.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    scale=0.78, every node/.style={transform shape},
+    lifeline/.style={thick, dashed, gray},
+    entity/.style={rectangle, draw=blue!70, fill=blue!10, rounded corners, minimum height=0.7cm, minimum width=2.3cm, font=\small\bfseries, align=center},
+    msg/.style={thick, ->, >=stealth},
+    reply/.style={thick, dashed, ->, >=stealth}
+]
+
+\node[entity] (usr) {Usuario / Vista};
+\node[entity, right=2.1cm of usr] (ctrl) {Controlador};
+\node[entity, right=2.1cm of ctrl] (min) {Audio (IO)};
+\node[entity, right=2.1cm of min] (db) {AlmacenMusica};
+
+\draw[lifeline] (usr) -- ++(0,-5.8);
+\draw[lifeline] (ctrl) -- ++(0,-5.8);
+\draw[lifeline] (min) -- ++(0,-5.8);
+\draw[lifeline] (db) -- ++(0,-5.8);
+
+\draw[msg] ($(usr)+(0,-0.8)$) -- node[above, font=\footnotesize] {Minar Carpeta...} ($(ctrl)+(0,-0.8)$);
+\draw[msg] ($(ctrl)+(0,-1.5)$) -- node[above, font=\footnotesize] {launch(IO): minarDirectorio()} ($(min)+(0,-1.5)$);
+\draw[msg] ($(min)+(0,-2.3)$) -- node[above, font=\footnotesize] {Analizador.analizar(.mp3)} ++(0.01,0);
+\draw[msg] ($(min)+(0,-2.8)$) -- node[above, font=\footnotesize] {guardarRola(Rola)} ($(db)+(0,-2.8)$);
+\draw[reply] ($(min)+(0,-3.6)$) -- node[above, font=\footnotesize] {progresar(n) -> runLater} ($(ctrl)+(0,-3.6)$);
+\draw[msg] ($(ctrl)+(0,-4.4)$) -- node[above, font=\footnotesize] {actualizarTabla + Cuadrícula} ($(usr)+(0,-4.4)$);
+\draw[reply] ($(min)+(0,-5.2)$) -- node[above, font=\footnotesize] {total procesadas} ($(ctrl)+(0,-5.2)$);
+
+\end{tikzpicture}
+\caption{Diagrama de secuencia: Minado en segundo plano con Kotlin Coroutines.}
+\label{fig:seq_minado}
+\end{figure}
+
+\subsubsection{Diagrama de Estados: Ciclo de Vida del Reproductor}
+En la Figura~\ref{fig:estados} se representan las transiciones del enum \texttt{EstadoReproduccion} administrado por \texttt{Reproductor} ante eventos de reproducción y ciclo de \texttt{MediaPlayer}.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    scale=0.84, every node/.style={transform shape},
+    st/.style={rectangle, draw=blue!80, fill=blue!10, rounded corners, minimum height=0.85cm, minimum width=2.8cm, align=center, font=\footnotesize\bfseries},
+    trans/.style={thick, ->, >=stealth, font=\tiny}
+]
+
+\node[st] (detenido) {DETENIDO};
+\node[st, right=2.6cm of detenido] (reproduciendo) {REPRODUCIENDO};
+\node[st, below=1.8cm of reproduciendo] (pausado) {PAUSADO};
+\node[st, below=1.8cm of detenido] (error) {ERROR};
+
+\draw[trans] (detenido) to[bend left=18] node[above] {cargarPista() + reproducir()} (reproduciendo);
+\draw[trans] (reproduciendo) to[bend left=18] node[below] {detener() / fin de lista} (detenido);
+\draw[trans] (reproduciendo) to[bend left=22] node[right] {pausar()} (pausado);
+\draw[trans] (pausado) to[bend left=22] node[left] {reproducir()} (reproduciendo);
+\draw[trans] (pausado) -- node[above, sloped] {detener()} (detenido);
+\draw[trans] (detenido) -- node[left] {Archivo inválido / Media fallida} (error);
+\draw[trans] (error) to[bend right=35] node[below] {cargarPista() válida} (reproduciendo);
+
+\begin{scope}[on background layer]
+    \node[draw=blue!50, dashed, rounded corners, fit=(detenido) (reproduciendo) (pausado) (error), label=above:\textbf{Máquina de Estados de \texttt{EstadoReproduccion}}] {};
+\end{scope}
+
+\end{tikzpicture}
+\caption{Máquina de estados del motor multimedia.}
+\label{fig:estados}
+\end{figure}
+
+\section{Implementación}
+
+\subsection{Tecnologías y Entornos de Desarrollo}
+La construcción del sistema integró el siguiente conjunto tecnológico declarado en \texttt{build.gradle.kts}:
+\begin{itemize}
+    \item \textbf{Lenguaje y Plataforma:} Kotlin \texttt{2.0.20} compilado hacia JVM \texttt{21} mediante Gradle Kotlin DSL.
+    \item \textbf{Interfaz Gráfica y Multimedia:} JavaFX \texttt{21.0.4} (\texttt{javafx.controls} y \texttt{javafx.media} mediante \texttt{org.openjfx.javafxplugin}).
+    \item \textbf{Lectura de Etiquetas MP3:} \texttt{net.jthink:jaudiotagger:3.0.1} para decodificación uniforme de ID3v1, ID3v2.3, ID3v2.4 (incluidos encabezados extendidos) y extracción de portadas.
+    \item \textbf{Persistencia y Concurrencia:} Driver \texttt{org.xerial:sqlite-jdbc:3.46.1.0} y \texttt{org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0}.
+    \item \textbf{Documentación:} XeLaTeX para la compilación de este reporte.
+\end{itemize}
+
+\subsection{Extracción de Etiquetas, Concurrencia y Carátulas}
+El componente \texttt{Audio.minarDirectorio()} recorre el árbol de directorios mediante \texttt{walkTopDown()} filtrando archivos \texttt{.mp3} dentro de \texttt{withContext(Dispatchers.IO)}. En cada iteración verifica \texttt{ensureActive()} para soportar cancelación cooperativa y delega a \texttt{Analizador.analizar()}, que captura excepciones por archivo corrupto sin interrumpir el lote completo. Para las portadas, \texttt{GestorCaratulas} consulta la primera imagen embebida en \texttt{tag.firstArtwork} o busca archivos gráficos en la carpeta del álbum en segundo plano.
+
+\subsection{Buscador Avanzado, Vínculo con Bandas y Estándar XDG}
+Al inicializar la aplicación gráfica en \texttt{Main.kt}, la función \texttt{obtenerRutaBaseDatosXdg()} resuelve \texttt{\$XDG\_DATA\_HOME/reproductor-mp3/musica.db} (o \texttt{\~/.local/share/reproductor-mp3/musica.db}), mientras que \texttt{GestorBaseDatos} asegura la existencia del directorio padre antes de abrir SQLite. En la interfaz, la biblioteca inicia oculta al arrancar hasta que el usuario mina una carpeta o selecciona una base de datos manualmente. Cuando se realizan búsquedas en \texttt{Controlador.ejecutarBusqueda()}, el texto es dividido en cláusulas \texttt{OR} y tokens separados por espacios o \texttt{\&}, normalizados con \texttt{Normalizer.Form.NFD}; además, \texttt{AlmacenMusica.obtenerNombresMiembrosPorGrupo()} permite que al buscar a un integrante se muestren tanto sus temas como solista como las canciones de las bandas a las que pertenece.
+
+\subsection{Interfaz Compacta y Corrección de Redimensionamiento}
+La ventana principal (\texttt{410 px} de ancho inicial) sitúa arriba las acciones del minero y carga de base de datos, al centro la carátula y metadatos en curso, abajo los controles de reproducción (\texttt{Anterior}, botón unificado \texttt{Play}/\texttt{Pausa}, \texttt{Siguiente}, \texttt{Detener}, progreso y volumen), un apéndice inferior que despliega la siguiente pista a reproducir y un apéndice lateral derecho que abre la ventana secundaria de biblioteca (\texttt{1020x640}). Dado que ajustar \texttt{stage.height} directamente producía en GTK el fallo \texttt{gtk\_window\_resize: assertion 'width > 0' failed}, se implementó \texttt{ajustarVentanaPrincipalAlContenido()}, el cual mantiene el ancho vigente, fuerza CSS/layout y llama a \texttt{stage.sizeToScene()} para conservar alineados el renderizado y los botones.
+
+\subsection{Requerimientos del Sistema}
+Para compilar y ejecutar el sistema se requiere:
+\begin{itemize}
+    \item Sistema Operativo GNU/Linux (probado en Linux Mint con servidor gráfico X11/GTK).
+    \item JDK 21 (\texttt{OpenJDK 21}).
+    \item Gradle Wrapper incluido en el repositorio (\texttt{./gradlew}).
+    \item Distribución LaTeX con \texttt{xelatex} y tipografías \textit{Noto Sans} / \textit{Noto Sans Mono} para compilar el reporte.
+\end{itemize}
+
+\subsection{Instrucciones de Compilación y Ejecución}
+La Tabla~\ref{tab:gradle} resume los comandos disponibles para compilar, ejecutar y probar el proyecto.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{0.94}
+\begin{tabularx}{\textwidth}{p{5.8cm} l X}
+\toprule
+\textbf{Comando} & \textbf{Tarea / Herramienta} & \textbf{Descripción} \\
+\midrule
+\texttt{./gradlew compileKotlin} & Compilación & Compila todo el código fuente Kotlin del proyecto. \\
+\texttt{./gradlew run} & Aplicación gráfica & Inicia el reproductor compacto JavaFX (\texttt{interfaz.MainKt}). \\
+\texttt{./gradlew abrirMinero -Pargs="..."} & Minero autónomo CLI & Ejecuta \texttt{MainMineroKt} recibiendo \texttt{<carpeta> <ruta.db>}. \\
+\texttt{./gradlew compilarReporte} & Documentación & Ejecuta \texttt{xelatex} en \texttt{reporte/} para generar \texttt{reporte/reporte.pdf}. \\
+\bottomrule
+\end{tabularx}
+\caption{Comandos de compilación y ejecución del proyecto.}
+\label{tab:gradle}
+\end{table}
+
+\section{Conclusiones}
+
+El desarrollo del proyecto permitió hacer en una aplicación funcional los principios de diseño modular, persistencia relacional y concurrencia aplicados a multimedia:
+\begin{enumerate}
+    \item \textbf{Desacoplamiento efectivo con MVC y Observadores:} Separar \texttt{nucleo}, \texttt{minero}, \texttt{reproductor} e \texttt{interfaz} permitió rediseñar la interfaz gráfica en dos ventanas coordinadas (vista en lista, cuadrícula de carátulas y reproductor compacto) sin modificar la lógica de base de datos ni el motor de audio.
+    \item \textbf{Robustez en lectura ID3 e integridad de archivos:} La transición a \texttt{jaudiotagger} resolvió las limitaciones de \texttt{mp3agic} frente a encabezados extendidos ID3v2.4, garantizando la extracción confiable de metadatos y portadas manteniendo los archivos \texttt{.mp3} intactos en disco.
+    \item \textbf{Usabilidad y portabilidad en escritorio Linux:} La adopción del estándar XDG para almacenar la base de datos, el buscador en tiempo real insensible a acentos y la corrección mediante \texttt{sizeToScene()} para el redimensionamiento en GTK aseguraron una experiencia fluida y consistente.
+\end{enumerate}
+
+\section{Bibliografía}
+\begin{enumerate}[label={[\arabic*]}, leftmargin=2em]
+    \item JetBrains. \textit{Kotlin Language Documentation \& Kotlin Coroutines Guide}. Disponible en: \url{https://kotlinlang.org/docs/home.html}
+    \item OpenJFX. \textit{JavaFX 21 API Documentation (javafx.controls, javafx.media)}. Disponible en: \url{https://openjfx.io/javadoc/21/}
+    \item jthink. \textit{jaudiotagger: Java Audio Tagging Library}. Disponible en: \url{http://www.jthink.net/jaudiotagger/}
+    \item Xerial. \textit{SQLite JDBC Driver}. Repositorio en GitHub. Disponible en: \url{https://github.com/xerial/sqlite-jdbc}
+    \item ID3.org. \textit{ID3 tag version 2.4.0 - Main Structure and Native Frames}. Especificación técnica oficial. Disponible en: \url{https://id3.org/id3v2.4.0-structure}
+    \item freedesktop.org. \textit{XDG Base Directory Specification}. Disponible en: \url{https://specifications.freedesktop.org/basedir-spec/latest/}
+\end{enumerate}
+
+\end{document}
